@@ -16,5 +16,5 @@ class Button:
         x,y = pos
         self.rect = pg.Rect(x,y, self.rect.width, self.rect.height)
 
-    def is_clicked(self, pos:tuple[int, int], mouse_clicked:bool=False):
-        return self.rect.collidepoint(pos) and self.action is not None and mouse_clicked
+    def is_hovered(self, pos:tuple[int, int]):
+        return self.rect.collidepoint(pos) and self.action is not None

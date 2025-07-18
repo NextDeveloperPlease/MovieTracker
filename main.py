@@ -2,11 +2,14 @@ import re
 import requests
 import logging
 import time
+import sys
 
 from bs4 import BeautifulSoup
-from enum import Enum
 from utils.button import Button
 from utils.movie import Movie
+from utils.showtime import Showtime
+#from utils.seat import Seat
+from utils.display_mode import DisplayMode
 
 import pygame as pg
 
@@ -33,22 +36,32 @@ selected_showtime = None
 seat_buttons = []
 selected_seats = []
 
+display_mode = DisplayMode.MOVIE
 
-class DisplayMode(Enum):
-    MOVIE = 1
-    SHOWTIME = 2
-    SEAT = 3
-    NOTIFYING = 4
+BASE_URL = "https://www.cinemark.com"
 
 def check_events():
     ''' Checks for events like quitting the application '''
-    global running
+    global running, display_mode
     for event in pg.event.get():
         if event.type == pg.QUIT:
             running = False
         elif event.type == pg.KEYDOWN:
             if event.key == pg.K_ESCAPE:
                 running = False
+        elif event.type == pg.MOUSEBUTTONDOWN:
+            pos = pg.mouse.get_pos()
+            match display_mode:
+                case DisplayMode.MOVIE:
+                    for button in movie_buttons:
+                        if button.is_hovered(pos):
+                            button.action()
+                            continue  # Only one action per click
+                case DisplayMode.SHOWTIME:
+                    for button in showtime_buttons:
+                        if button.is_hovered(pos):
+                            button.action()
+                            continue  # Only one action per click
 
 def check_seat_availability(url, row_start, row_end, col):
     seat_availabilities = []
@@ -85,8 +98,10 @@ def check_seat_availability(url, row_start, row_end, col):
     return seat_availabilities
 
 def get_movie_data_from_webpage(url = None):
+    ''' Fetches movie data from the Cinemark webpage '''
+    global BASE_URL
     if not url:
-        url = "https://www.cinemark.com/theatres/id-meridian/cinemark-majestic-cinemas?gad_source=1&gad_campaignid=21320863670&gclid=Cj0KCQjwpf7CBhCfARIsANIETVr9mT_YmFb_aVZQJhipsY3c2kmYckiYoG5dQLgUfU9ODgKkcIIqVD8aApW8EALw_wcB&showDate=2025-06-30"
+        url = BASE_URL + "/theatres/id-meridian/cinemark-majestic-cinemas?gad_source=1&gad_campaignid=21320863670&gclid=Cj0KCQjwpf7CBhCfARIsANIETVr9mT_YmFb_aVZQJhipsY3c2kmYckiYoG5dQLgUfU9ODgKkcIIqVD8aApW8EALw_wcB&showDate=2025-06-30"
     try:
         response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
         response.raise_for_status()  # Check for HTTP errors
@@ -95,40 +110,16 @@ def get_movie_data_from_webpage(url = None):
         showtime_links_arranged = {}
         
         for link in showtime_links:
-            href = link.get('href', '')
-            if 'CinemarkMovieId=' not in href:
-                logging.warning("Link does not contain a valid CinemarkMovieId.")
+            showtime = Showtime(link_html=link)
+            if not showtime:
+                logging.warning(f"Skipping invalid showtime link: {link}")
                 continue
-            movie_id = re.search(r'CinemarkMovieId=(\d+)', href)
-            movie_time = link.get_text(strip=True)
-            if not movie_id:
-                logging.warning("No movie ID found in the link.")
-                continue
-            if not movie_time:
-                logging.warning("No movie time found in the link.")
-                continue
-            movie_id_str = movie_id.group(1)
-            if not movie_id_str.isdigit():
-                logging.warning("No valid movie ID found in the link.")
-                continue
-            if showtime_links_arranged.get(movie_id_str):
-                # If the movie ID already exists, append the link to the list
-                showtime_links_arranged[movie_id_str].append(
-                    {
-                        'link': href,
-                        'time': movie_time
-                    }
-                )
+            logging.info(f"Found showtime: {showtime.time} (ID: {showtime.movie_id})")
+            if showtime_links_arranged.get(showtime.movie_id):
+                showtime_links_arranged[showtime.movie_id].append(showtime)
             else:
-                # If the movie ID does not exist, add the ID to the dictionary with the link
-                showtime_links_arranged[movie_id_str] = [
-                    {
-                        'link': href,
-                        'time': movie_time
-                    }
-                ]
-                logging.info(f"Movie ID: {movie_id_str}")
-
+                showtime_links_arranged[showtime.movie_id] = [showtime]
+        
         # Get available movies
         movies = []
         for h3 in soup.find_all('h3'):
@@ -137,7 +128,7 @@ def get_movie_data_from_webpage(url = None):
                 movies.append(
                     Movie(title=h3.get_text(strip=True), 
                         id=int(h3_id),
-                        showtimes=showtime_links_arranged.get(h3_id, {'link': '', 'time': ''})
+                        showtimes=showtime_links_arranged.get(h3_id, [])
                     )
                 )
 
@@ -155,9 +146,9 @@ def get_movie_data_from_webpage(url = None):
         logging.error(f"Error fetching movie data: {e}")
         return
 
-def display_header(display_mode, movie=None, showtime=None, seats=None):
+def display_header():
     ''' Displays the header with current date and display mode '''
-    global screen, running
+    global screen, running, display_mode, selected_movie, selected_showtime, selected_seats
     font = pg.font.Font(None, 36)
     date_text = time.strftime("%Y-%m-%d %H:%M:%S")
     mode_text = ""
@@ -165,12 +156,12 @@ def display_header(display_mode, movie=None, showtime=None, seats=None):
         case DisplayMode.MOVIE:
             mode_text = "Movies:"
         case DisplayMode.SHOWTIME:
-            if not movie:
+            if not selected_movie:
                 mode_text = "Showtimes:"
                 logging.error("No movie selected for showtimes.")
                 return
-            movie_edited = f"{movie}'s"
-            mode_text = f'"{movie_edited}" Showtimes:'
+            movie_edited = f"{selected_movie.title}'s"
+            mode_text = f'{movie_edited} Showtimes:'
         case DisplayMode.SEAT:
             mode_text = "Seats:"
         case DisplayMode.NOTIFYING:
@@ -191,30 +182,29 @@ def display_movies(movies):
             movie_buttons.append(button)
     for button in movie_buttons:
         button.draw(screen)
-        if button.is_clicked(pg.mouse.get_pos(),pg.mouse.get_pressed()[0]):
-            button.action()
 
 def select_movie(movie):
     '''Movie selection function for button action'''
-    global selected_movie
+    global selected_movie, display_mode
     logging.info(f'Selected: {movie}')
     selected_movie = movie
-    
+    logging.info(f'Available Showtimes:')
+    for showtime in movie.showtimes:
+        logging.info(f"- {showtime.time} (ID: {showtime.movie_id})")
+
 def display_showtimes(movie):
     ''' Displays the list of showtimes in a grid format'''
     global screen
     if not showtime_buttons:
         for i, showtime in enumerate(movie.showtimes):
-            button = Button(showtime.get('time', ''), 50 + (i % SHOWTIME_COL) * 200, 200 + (i // SHOWTIME_COL) * 100, 180, 80, action=lambda st=showtime: select_showtime(st))
+            button = Button(showtime.time, 50 + (i % SHOWTIME_COL) * 200, 200 + (i // SHOWTIME_COL) * 100, 180, 80, action=lambda st=showtime: select_showtime(st))
             showtime_buttons.append(button)
     for button in showtime_buttons:
         button.draw(screen)
-        if button.is_clicked(pg.mouse.get_pos(),pg.mouse.get_pressed()[0]):
-            button.action()
 
 def select_showtime(showtime):
     ''' Determines which showtime you selected from the list of showtimes '''
-    global selected_showtime
+    global selected_showtime, display_mode
     logging.info(f'Selected: {showtime}')
     selected_showtime = showtime
 
@@ -237,19 +227,17 @@ def select_seat(seat_map):
     # TODO
 
 def main():
-    global running
+    global running, display_mode
     logging.info("Starting Movie Seat Selection Application")
     
-    display_mode = DisplayMode.MOVIE
     movies = None
-    showtimes = None
     seats = None
     
     while running:
         screen.fill(BLACK)  # Fill the screen with black
         check_events()  # Check for events (like quitting)
         
-        display_header(display_mode)  # Display the header with current date and mode
+        display_header()  # Display the header with current date and mode
 
         match(display_mode):
             case DisplayMode.MOVIE:
@@ -266,23 +254,17 @@ def main():
                     display_mode = DisplayMode.SHOWTIME
 
             case DisplayMode.SHOWTIME:
-                if not showtimes:
-                    logging.info(f"Fetching showtimes for movie ID {selected_movie}...")
-                    showtimes = get_showtimes(selected_movie)
-                    if not showtimes:
-                        logging.error("No showtimes available for the selected movie. Exiting.")
-                        running = False
-                        continue
-                display_showtimes(showtimes)
-                showtime = select_showtime(showtimes)
-                if showtime:
-                    logging.info(f"Selected showtime: {showtime}")
+                display_showtimes(selected_movie)
+                if selected_showtime:
+                    logging.info(f"Selected showtime: {selected_showtime}")
                     display_mode = DisplayMode.SEAT
 
             case DisplayMode.SEAT:
-                if not seats:
-                    logging.info(f"Fetching seats for showtime ID {showtime}...")
-                    seats = get_seats(showtime)
+                # TODO: Fix this section to display seats
+                display_showtimes(selected_movie)
+                '''if not seats:
+                    logging.info(f"Fetching seats for showtime ID {selected_showtime.movie_id}...")
+                    seats = get_seats(selected_showtime)
                     if not seats:
                         logging.error("No seats available for the selected showtime. Exiting.")
                         running = False
@@ -290,9 +272,11 @@ def main():
                 display_seat_map(seats)
                 selected_seats_info = select_seat(seats)
                 if selected_seats_info:
-                    display_mode = DisplayMode.NOTIFYING
+                    logging.info(f"Selected seats: {selected_seats_info}")'''
             
             case DisplayMode.NOTIFYING:
+                # TODO: Fix this section to display notifications
+                logging.info("Displaying notification for selected seats...")
                 if selected_seats_info:
                     logging.info(f"Selected seats: {selected_seats_info}")
                     seat_availabilities = check_seat_availability(selected_seats_info['url'], 
@@ -304,7 +288,7 @@ def main():
                         logging.info("✅ All selected seats are available!")
                     else:
                         logging.error("❌ Some selected seats are NOT available.")
-                    display_notification(all_available, seat_availabilities)
+                    #display_notification(all_available, seat_availabilities)
                     if reset:
                         display_mode = DisplayMode.MOVIE
                         reset = False
