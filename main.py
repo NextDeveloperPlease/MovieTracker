@@ -261,8 +261,7 @@ def main():
 
             case DisplayMode.SEAT:
                 # TODO: Fix this section to display seats
-                display_showtimes(selected_movie)
-                '''if not seats:
+                if not seats:
                     logging.info(f"Fetching seats for showtime ID {selected_showtime.movie_id}...")
                     seats = get_seats(selected_showtime)
                     if not seats:
@@ -272,7 +271,7 @@ def main():
                 display_seat_map(seats)
                 selected_seats_info = select_seat(seats)
                 if selected_seats_info:
-                    logging.info(f"Selected seats: {selected_seats_info}")'''
+                    logging.info(f"Selected seats: {selected_seats_info}")
             
             case DisplayMode.NOTIFYING:
                 # TODO: Fix this section to display notifications
