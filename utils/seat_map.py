@@ -4,7 +4,7 @@ from enum import Enum
 import logging
 import pygame as pg
 #from utils.button import Button
-from button import Button
+from .button import Button
 
 SEAT_RECT_DIM = 50 # It is a square
 
@@ -80,10 +80,14 @@ class SeatMap:
             font = pg.font.Font(None, 5)
         if not hasattr(self, 'buttons'):
             self.create_seat_map()
-        for row, buttons in self.buttons.items():
-            for col, button in enumerate(buttons):
-                if self.seats.get(row)[col].selected:
-                    button.update_color(pg.Color('yellow'))
+            
+        for row in self.seats:
+            seats = self.seats[row]
+            buttons = self.buttons[row]
+            for seat,button in zip(seats,buttons):
+                if seat.availability:
+                    color = pg.Color('yellow') if seat.selected else pg.Color('green')
+                    button.update_color(color)
                 button.draw(screen, font)
                 if button.is_hovered(pg.mouse.get_pos()):
                     pg.draw.rect(screen, (255, 255, 0), button.rect, 2)
@@ -101,30 +105,30 @@ def select_seat(seat: Seat):
     else:
         logging.warning(f"Seat {seat.row}{seat.col} is not available.")
 
+if __name__ == '__main__':
+    seat_html = BeautifulSoup('', 'html.parser')
+    for i in range(1, 9):
+        for j in range(1, 10):
+            # Example seat HTML generation
+            seat_html.append(Tag(name='button', attrs={'id': f'row{i}col{j}', 'available': 'true'}))
+        seat_html.append(Tag(name='button', attrs={'id': f'row{i}col10', 'available': 'false'}))
 
-seat_html = BeautifulSoup('', 'html.parser')
-for i in range(1, 9):
-    for j in range(1, 10):
-        # Example seat HTML generation
-        seat_html.append(Tag(name='button', attrs={'id': f'row{i}col{j}', 'available': 'true'}))
-    seat_html.append(Tag(name='button', attrs={'id': f'row{i}col10', 'available': 'false'}))
+    seat_map = SeatMap(seat_html=seat_html)
+    running = True
+    pg.init()
+    screen = pg.display.set_mode((800, 600))
+    font = pg.font.Font(None, 36)
+    while running:
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                running = False
+            if event.type == pg.MOUSEBUTTONDOWN:
+                if event.button == 1:  # Left click
+                    for row,buttons in seat_map.buttons.items():
+                        for button in buttons:
+                            if button.is_hovered(pg.mouse.get_pos()):
+                                button.action()
 
-seat_map = SeatMap(seat_html=seat_html)
-running = True
-pg.init()
-screen = pg.display.set_mode((800, 600))
-font = pg.font.Font(None, 36)
-while running:
-    for event in pg.event.get():
-        if event.type == pg.QUIT:
-            running = False
-        if event.type == pg.MOUSEBUTTONDOWN:
-            if event.button == 1:  # Left click
-                for row,buttons in seat_map.buttons.items():
-                    for button in buttons:
-                        if button.is_hovered(pg.mouse.get_pos()):
-                            button.action()
-
-    screen.fill((255, 255, 255))  # Clear the screen with white
-    seat_map.display(screen,font=font)  # Display the seat map
-    pg.display.flip()
+        screen.fill((255, 255, 255))  # Clear the screen with white
+        seat_map.display(screen,font=font)  # Display the seat map
+        pg.display.flip()
