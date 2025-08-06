@@ -220,8 +220,6 @@ class DisplayManager:
         self.switch_to_notifications = True
         return True
         
-        
-    
 class ContentManager:
     '''
         Manager class that handles the content of the application.
