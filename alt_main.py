@@ -5,11 +5,11 @@ import time
 import sys
 
 from bs4 import BeautifulSoup
-from utils.button import Button
-from utils.movie import Movie
-from utils.showtime import Showtime
+from utils.assets.button import Button
+from utils.data_structures.movie import Movie
+from utils.data_structures.showtime import Showtime
 #from utils.seat import Seat
-from utils.display_mode import DisplayMode
+from utils.misc.display_mode import DisplayMode
 
 import pygame as pg
 
@@ -39,6 +39,10 @@ selected_seats = []
 display_mode = DisplayMode.MOVIE
 
 BASE_URL = "https://www.cinemark.com"
+
+'''
+    IGNORE THIS FILE. I have it saved as a reference, but the actual main.py file is the one that runs the application.
+'''
 
 def check_events():
     ''' Checks for events like quitting the application '''

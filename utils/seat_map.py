@@ -4,9 +4,15 @@ from enum import Enum
 import logging
 import pygame as pg
 #from utils.button import Button
-from .button import Button
+from utils.assets.button import Button
 
 SEAT_RECT_DIM = 50 # It is a square
+
+'''
+    IGNORE THIS FILE. This was a previous attempt at creating a seat map, but it was not fully implemented.
+    The current implementation is in utils/data_structures/seat.py and utils/managers/seat_manager.py.
+    This is a reference file so I can see how I previously attempted to create a seat map.
+'''
 
 class Seat:
     def __init__(self, seat_html:Tag):
@@ -106,6 +112,9 @@ def select_seat(seat: Seat):
         logging.warning(f"Seat {seat.row}{seat.col} is not available.")
 
 if __name__ == '__main__':
+    import os, sys
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+    
     seat_html = BeautifulSoup('', 'html.parser')
     for i in range(1, 9):
         for j in range(1, 10):
