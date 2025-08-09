@@ -5,13 +5,13 @@ import logging
 import time
 import sys
 import pygame as pg
-from utils.managers.seat_manager import SeatManager
+from utils.managers.content_manager.seat_manager import SeatManager
 from utils.misc.display_mode import DisplayMode, update_display_mode
 from settings.settings_utils import Settings
-from utils.managers.showtime_manager import ShowtimeManager
-from utils.managers.movie_manager import MovieManager
+from utils.managers.content_manager.showtime_manager import ShowtimeManager
+from utils.managers.content_manager.movie_manager import MovieManager
 from utils.data_structures.button_spec import ButtonSpec
-from utils.misc.utils import is_list_objects, validate_button_specs, convert_button_index_to_position, button_generation_from_specs
+from utils.misc.utils import is_list_objects, validate_button_specs, button_generation_from_specs
 
 from bs4 import BeautifulSoup
 # from utils.button import Button
